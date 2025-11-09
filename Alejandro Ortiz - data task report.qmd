@@ -1,0 +1,44 @@
+---
+title: "Development Impact Lab Data Task"
+subtitle: "Professor Michael Kremer"
+author: "Alejandro Ortiz"
+output-file: "Alejandro Ortiz - Report.pdf"
+bibliography: support/references.bib
+link-citations: true
+csl: https://www.zotero.org/styles/apa-annotated-bibliography
+format:
+  pdf:
+    fig-cap-location: top
+    pdf-engine: lualatex
+    keep-tex: false
+    toc: true
+    toc-depth: 2
+    include-before-body: support/before-toc.tex
+    include-in-header: support/latex_header.tex
+    listings: false
+    code-overflow: wrap
+    monofont: "Fira Code"
+    monofontoptions:
+      - Contextuals=Alternate
+      - Ligatures=TeX
+      - Renderer=Harfbuzz
+      
+execute:
+  echo: false
+  output: false
+  warning: false
+  message: false
+
+editor: visual
+---
+
+\newpage
+
+**Disclaimer:** The responses and content presented in this document are solely my own work. They reflect my personal understanding, analysis, and perspective. All material contained herein has been created independently by me.
+
+# About the data
+
+# References
+
+::: {#refs}
+:::

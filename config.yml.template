@@ -1,0 +1,4 @@
+default:
+    raw_data: "PATH_TO_INPUT_DATA_FOLDER_HERE"
+
+    processed_data: "PATH_TO_OUTPUT_DATA_FOLDER_HERE"
