@@ -36,7 +36,136 @@ editor: visual
 
 **Disclaimer:** The responses and content presented in this document are solely my own work. They reflect my personal understanding, analysis, and perspective. All material contained herein has been created independently by me.
 
-# About the data
+```{r}
+# University of Chicago
+# Development Impact Lab
+
+# By: Alejandro Ortiz
+
+# Date: 2025/11/09
+
+#> Goal: Complete data task instructions.
+
+
+
+# Environment setup and dependencies                                        ----
+
+
+# Clean - R's environment
+# .rs.restartR()
+cat("\f")
+graphics.off()
+remove(list = ls())
+gc(full = T)
+
+
+# Print working directory
+getwd()
+
+
+# Set options
+# options(java.parameters = "-Xmx8000m")
+options(max.print = 200)
+
+
+# Update and load packages
+# update.packages(ask = F)
+
+# 
+library(knitr)
+library(kableExtra)
+
+# FE regressions
+library(modelsummary)
+library(fixest)
+
+# Plotting
+library(patchwork)
+library(scales)
+library(maps)
+
+# Core
+library(tidyverse)
+library(data.table)
+
+
+# Get environment variables
+cfg <- config::get()
+
+
+# Source project functions
+source("Scripts/Functions/.source_all_functions.R", local = environment())
+
+
+
+
+# Import data sets                                                          ----
+
+load("Output/task_results.RData")
+```
+
+# Question 1
+
+*Are schools comparable across treatment groups? Are student cohorts?*
+
+To assess the comparability of the groups, I conducted four statistical tests: a simple joint significance F-test, a Wald test for robustness (given the F-test's application to a heteroskedastic Linear Probability Model \[LPM\]), individual difference-of-means tests for the continuous variables, and individual chi-squared tests for the discrete variables.
+
+The results are as follows:
+
+## Schools
+
+For schools I calculated the following model on the baseline data:
+
+$$
+Trearment_{i} = \beta_{0} + \gamma_{d,i} + \beta X_{i} + \varepsilon_{i}
+$$
+
+Where $\gamma_{d,i}$ represents district fixed effects, and $X_{i}$ are the school-level covariates including the number of: teachers, female teachers, female studens, male students, number of schools in a 2 km radius, and number of latrines as well as:
+
+-   Urban dummy
+
+-   Female head teacher dummy
+
+-   Average teacher age
+
+-   The average student score
+
+the F-statistic for this model has a value of `r (balance_schools$full_model %>% fitstat(type = "f"))$f$stat %>% round(3)` on `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df1` and `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df2` degrees of freedom. The corresponding p-value of this statistic is `r (balance_schools$full_model %>% fitstat(type = "f"))$f$p %>% round(3)`. However, because this is a Linear Probability Model (LPM), it is heteroskedastic and can yield out-of-bounds predictions. The heteroskedasticity is problematic because it can bias the standard errors, thereby rendering the F-statistic unreliable and typically increasing the probability of a Type I error. To account for this, the model is estimated using heteroskedasticity-robust standard errors, and a second test is performed. This is the Wald test. Even though this test is asymptotically equivalent to the F-test, the small sample size produces different results and serves as a robustness check on the joint significance of the model. The Wald test has a p-value of 0.17.
+
+To test for individual significance, I conduct a series of T-tests on continuous variables
+
+```{r}
+#| output: true
+#| label: tbl-t_stat_schl
+#| tbl-cap: "Difference of means T-test results"
+#| tbl-pos: "H"
+
+
+kable(
+  balance_schools[["t_tests"]]
+) %>% 
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+For discrete variables I do Chi-squared tests. For students I repeat this process. In all these tests p-values are never statistically significant at the 10% level. Given that all tests indicate balance between treatment and control groups at baseline I conclude that randomization was successful. Even is some p-values are a bit low there is no strong evidence of imbalance at the school or student level.
+
+Note: More analysis in the script file, but I am short on time.
+
+# Question 2
+
+*What were the effects of the intervention on the outcomes of interest after 3 and 5 years?*
+
+![Treatment Effect on Main Outcomes](Output/main_outcomes_plot.png){#fig-q2}
+
+@fig-q2 shows the point estimates and 95% confidence intervals for the treatment effects on the main outcomes of interest after 3 and 5 years. The results indicate that the intervention did not have a statistically significant effect on school evasion rates, pregnancy rates or marriage rates after 3 years. After 5 years it did have a statistically significant effect on dropout and marriage  rates, but not on pregnancy rates.
+
+![Treatment Effect on Missing Data Rates](Output/missing_outcomes_plot.png)
+
+# Question 3
+
+*Were the effects on school evasion different for girls and boys?*
+
+They were not. Please see results in the script file.
 
 # References
 

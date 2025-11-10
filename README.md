@@ -66,7 +66,7 @@ The preferred way to reproduce this code is to clone the repo directly from GitH
    Then edit `config.yml` to replace the placeholder variables with your actual data paths:
 
    - Replace `PATH_TO_INPUT_DATA_FOLDER_HERE` with the path to your input data folder.
-   - Replace `PATH_TO_OUTPUT_DATA_FOLDER_HERE` with the path to your output data folder.
+   - Replace `PATH_TO_OUTPUT_DATA_FOLDER_HERE` with the path to your output data folder (in this case since the data task asks to include derived data sets in the response, this variable is not used).
 
    Make sure all directory paths use `/` instead of `\`.
 
