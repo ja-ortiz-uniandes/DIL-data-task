@@ -22,6 +22,7 @@ format:
       - Contextuals=Alternate
       - Ligatures=TeX
       - Renderer=Harfbuzz
+    tbl-pos: "H"
       
 execute:
   echo: false
@@ -108,7 +109,7 @@ load("Output/task_results.RData")
 
 *Are schools comparable across treatment groups? Are student cohorts?*
 
-To assess the comparability of the groups, I conducted four statistical tests: a simple joint significance F-test, a Wald test for robustness (given the F-test's application to a heteroskedastic Linear Probability Model \[LPM\]), individual difference-of-means tests for the continuous variables, and individual chi-squared tests for the discrete variables.
+To assess the comparability of the groups, I conducted four statistical tests: a simple joint significance F-test, a Wald test for robustness, individual difference-of-means tests for the continuous variables, and individual chi-squared tests for the discrete variables.
 
 The results are as follows:
 
@@ -117,10 +118,10 @@ The results are as follows:
 For schools I calculated the following model on the baseline data:
 
 $$
-Trearment_{i} = \beta_{0} + \gamma_{d,i} + \beta X_{i} + \varepsilon_{i}
+Treatment_{i} = \beta_{0} + \gamma_{d,i} + \beta X_{i} + \varepsilon_{i}
 $$
 
-Where $\gamma_{d,i}$ represents district fixed effects, and $X_{i}$ are the school-level covariates including the number of: teachers, female teachers, female studens, male students, number of schools in a 2 km radius, and number of latrines as well as:
+Where $\gamma_{d,i}$ represents district fixed effects, and $X_{i}$ are the school-level covariates including the number of: teachers, female teachers, female students, male students, number of schools in a 2 km radius, and number of latrines as well as:
 
 -   Urban dummy
 
@@ -130,44 +131,195 @@ Where $\gamma_{d,i}$ represents district fixed effects, and $X_{i}$ are the scho
 
 -   The average student score
 
-the F-statistic for this model has a value of `r (balance_schools$full_model %>% fitstat(type = "f"))$f$stat %>% round(3)` on `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df1` and `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df2` degrees of freedom. The corresponding p-value of this statistic is `r (balance_schools$full_model %>% fitstat(type = "f"))$f$p %>% round(3)`. However, because this is a Linear Probability Model (LPM), it is heteroskedastic and can yield out-of-bounds predictions. The heteroskedasticity is problematic because it can bias the standard errors, thereby rendering the F-statistic unreliable and typically increasing the probability of a Type I error. To account for this, the model is estimated using heteroskedasticity-robust standard errors, and a second test is performed. This is the Wald test. Even though this test is asymptotically equivalent to the F-test, the small sample size produces different results and serves as a robustness check on the joint significance of the model. The Wald test has a p-value of 0.17.
+the F-statistic for this model has a value of `r (balance_schools$full_model %>% fitstat(type = "f"))$f$stat %>% round(3)` on `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df1` and `r (balance_schools$full_model %>% fitstat(type = "f"))$f$df2` degrees of freedom. The corresponding p-value of this statistic is `r (balance_schools$full_model %>% fitstat(type = "f"))$f$p %>% round(3)`. However, because this is a Linear Probability Model (LPM), it is heteroskedastic and can yield out-of-bounds predictions. The heteroskedasticity is problematic because it can bias the standard errors, thereby rendering the F-statistic unreliable and typically increasing the probability of a Type I error. To account for this, the model is estimated using heteroskedasticity-robust standard errors. Additionally the Wald test is performed. Even though this test is asymptotically equivalent to the F-test, it serves as a robustness check on the joint significance of the model. The Wald test has a p-value of `r balance_schools$wald_test[2, 4] %>% round(3)`.
 
-To test for individual significance, I conduct a series of T-tests on continuous variables
+To test for individual significance, I conduct a series of T-tests on continuous variables. The result of these tests can be seen in @tbl-t_stat_schl. The table shows that all p-values are above 12%, with most of these p-values above 43%. The number of girls and average student score have the lowest observed p-values (13% and 19%) which is slightly concerning. However, given that these p-values have not been corrected for multiple hypothesis testing and that they are still above the conventional 10% threshold, I do not consider this to be strong evidence of imbalance.
 
 ```{r}
 #| output: true
 #| label: tbl-t_stat_schl
-#| tbl-cap: "Difference of means T-test results"
+#| tbl-cap: "School-Level Baseline Balance Check - T-test Results for Continuous Covariates"
 #| tbl-pos: "H"
 
 
-kable(
-  balance_schools[["t_tests"]]
-) %>% 
+balance_schools[["t_tests"]] %>%
+  
+  mutate(
+    variable = case_when(
+      variable == "n_teachers"       ~ "N. teachers",
+      variable == "n_teachers_fem"   ~ "N. female teachers",
+      variable == "n_students_fem"   ~ "N. female students",
+      variable == "n_students_male"  ~ "N. male students",
+      variable == "n_schools_2km"    ~ "N. schools within 2 km",
+      variable == "av_teacher_age"   ~ "Avg. teacher age",
+      variable == "av_student_score" ~ "Avg. student score",
+      variable == "n_latrines"       ~ "N. latrines"
+    ),
+    
+    across(where(is.numeric), ~ round(., 3))
+  ) %>% 
+  
+  rename(
+    "Control Mean"   = control_mean,
+    "Treatment Mean" = treatment_mean,
+    "p-value"        = p.value,
+    Variable         = variable
+  ) %>%
+  
+  kable %>% 
+  
   kable_styling(latex_options = c("HOLD_position"))
 ```
 
-For discrete variables I do Chi-squared tests. For students I repeat this process. In all these tests p-values are never statistically significant at the 10% level. Given that all tests indicate balance between treatment and control groups at baseline I conclude that randomization was successful. Even is some p-values are a bit low there is no strong evidence of imbalance at the school or student level.
+For discrete variables I do Chi-squared tests. The results of these tests can be seen in @tbl-chi_sq_schl. The lowest p-value observed is 0.37, which indicates that there is no statistical evidence to suggest imbalance across any of the variables, even at the 10% significance level.
 
-Note: More analysis in the script file, but I am short on time.
+```{r}
+#| output: true
+#| label: tbl-chi_sq_schl
+#| tbl-cap: "School-Level Baseline Balance Check - Chi-Squared Test Results for Discrete Covariates"
+#| tbl-pos: "H"
+
+
+balance_schools[["chi_squared_tests"]] %>%
+  
+  mutate(
+    variable = case_when(
+      variable == "is_urban"            ~ "Urban school",
+      variable == "female_head_teacher" ~ "Female head teacher",
+      variable == "district"            ~ "District"
+    ),
+    
+    across(where(is.numeric), ~ round(., 3))
+  ) %>% 
+  
+  rename(
+    "Chi-squared statistic" = chi_squared_statistic,
+    "p-value"        = p.value,
+    Variable         = variable
+  ) %>%
+  
+  kable %>% 
+  
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+## Students
+
+The same process is repeated for students as was applied to schools. However, because the baseline variables for students differ, the model only includes a dummy variable for female students and the year-of-birth variable as controls. The resulting F-statistic is of `r (balance_students$full_model %>% fitstat(type = "f"))$f$stat %>% round(3)` on `r (balance_students$full_model %>% fitstat(type = "f"))$f$df1` and `r (balance_students$full_model %>% fitstat(type = "f"))$f$df2` degrees of freedom. The corresponding p-value of this statistic is `r (balance_students$full_model %>% fitstat(type = "f"))$f$p %>% round(3)`. The Wald test has a p-value of `r balance_students$wald_test[2, 4] %>% round(3)`.
+
+@tbl-t_stat_stud presents the results of the t-test for the difference of means in the year-of-birth variable between the control and treatment groups. There is no statistically significant difference between these groups.
+
+```{r}
+#| output: true
+#| label: tbl-t_stat_stud
+#| tbl-cap: "Student-Level Baseline Balance Check - T-test Result for Year-of-Birth"
+#| tbl-pos: "H"
+
+
+balance_students[["t_tests"]] %>%
+  
+  mutate(
+    variable = case_when(
+      variable == "yob" ~ "Year-of-birth"
+    ),
+    
+    across(where(is.numeric), ~ round(., 3))
+  ) %>% 
+  
+  rename(
+    "Control Mean"   = control_mean,
+    "Treatment Mean" = treatment_mean,
+    "p-value"        = p.value,
+    Variable         = variable
+  ) %>%
+  
+  kable %>% 
+  
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+Similarly, @tbl-chi_sq_stud presents the results of the randomization check for female students. The table indicates that there is no statistical evidence to suggest an imbalance between the control and treatment groups.
+
+```{r}
+#| output: true
+#| label: tbl-chi_sq_stud
+#| tbl-cap: "Student-Level Baseline Balance Check - Chi-Squared Test Result for Female Student Dummy"
+#| tbl-pos: "H"
+
+
+balance_students[["chi_squared_tests"]] %>%
+  
+  mutate(
+    variable = case_when(
+      variable == "is_female" ~ "Female student",
+    ),
+    
+    across(where(is.numeric), ~ round(., 3))
+  ) %>% 
+  
+  rename(
+    "Chi-squared statistic" = chi_squared_statistic,
+    "p-value"        = p.value,
+    Variable         = variable
+  ) %>%
+  
+  kable %>% 
+  
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+## Conclusion
+
+All of these tests yielded p-values greater than the 10% significance level. Although a few p-values are lower, around 12%, these are infrequent. Furthermore, given that no correction for multiple hypothesis testing has been applied, these results could be due to finite sample variation. Since all tests consistently fail to indicate an imbalance between the treatment and control groups at baseline, I conclude that randomization was successful at both the school and student levels.
 
 # Question 2
 
 *What were the effects of the intervention on the outcomes of interest after 3 and 5 years?*
 
-![Treatment Effect on Main Outcomes](Output/main_outcomes_plot.png){#fig-q2}
+@fig-q2 displays the point estimates and 95% confidence intervals for the treatment effects on the main outcomes of interest at the endline (three years after the start of the intervention) and the Two-Year Follow-up (five years after the start of the intervention). The results indicate that at the 5% significance level the intervention did not have a statistically measurable effect on school evasion rates, pregnancy rates, or marriage rates after three years. However, after five years, the intervention did demonstrate a statistically significant effect on dropout and marriage rates, but not on pregnancy rates. It is important to note that since the treatment was administered at the school level, these coefficients are also presented at the school level.
 
-@fig-q2 shows the point estimates and 95% confidence intervals for the treatment effects on the main outcomes of interest after 3 and 5 years. The results indicate that the intervention did not have a statistically significant effect on school evasion rates, pregnancy rates or marriage rates after 3 years. After 5 years it did have a statistically significant effect on dropout and marriage  rates, but not on pregnancy rates.
+![Treatment Effect Point Estimates and 95% Confidence Intervals on Main School-Level Outcomes](Output/main_outcomes_plot.png){#fig-q2}
 
-![Treatment Effect on Missing Data Rates](Output/missing_outcomes_plot.png)
+Some students had missing observations in the outcome variables at the endline, the follow-up, or both. To test whether the previous results were driven by these missing data, I estimated if the treatment influenced the proportion of missing values for each outcome. The results of this analysis can be found in @fig-q2_na. As the plot demonstrates, there is no statistically significant effect on the proportion of missing values for any of the outcomes at either the endline or the follow-up. This indicates that missing values are not uniquely distributed between the treatment and control groups and are uncorrelated with the treatment. Therefore, the previous results were not driven by missing values.
+
+![Treatment Effect Point Estimates and 95% Confidence Intervals on Missing Outcome Data Rates](Output/missing_outcomes_plot.png){#fig-q2_na}
+
+Potential challenges to the identification of the treatment effect include possible spillover effects. For example, the program's effect in a treated school might influence students in nearby schools. This is a valid concern that could complicate the interpretation of the program's impact.
+
+In this case, the ability to empirically test for spillover effects is limited because the only available variable indicating the connections between schools is the number of schools within a 2-kilometer radius. However, we lack information on whether these nearby schools are treated or control institutions, or their precise distance within that radius. As such, we do not possess information on the strength (distance) of the inter-school bonds or the treatment status relationship (treated and control) between them, which significantly restricts our ability to empirically evaluate spillovers.
+
+Due to these limitations, I do not empirically evaluate the possible effect of spillovers but propose a methodology in case one sought to test for such effects. This method involves estimating a regression for each outcome of interest that includes the treatment variable, the number of schools in a 2-kilometer radius, and the interaction term between these two variables. The interaction term would indicate the differential effect of the number of nearby schools (potentially control schools) on treated schools and should be statistically insignificant if no spillover effects are present. Similarly, the term for the number of schools indicates the effect of having other schools (potentially treated) nearby a control school and should also be statistically insignificant if spillover effects are absent.
 
 # Question 3
 
 *Were the effects on school evasion different for girls and boys?*
 
-They were not. Please see results in the script file.
+@tbl-q3 presents the estimation results for the dropout dummy as a function of the treatment dummy, the female dummy, and their interaction term, for both the endline and the follow-up. The model employed is a Linear Probability Model (LPM) and is therefore heteroskedastic. All estimations were performed using heteroskedasticity-robust standard errors and were clustered at the school level to account for the correlation of outcomes among students within the same school.
 
-# References
+As the table demonstrates, only the intercept and the coefficient for the female dummy are statistically significant at any of the conventional levels of confidence (10% or below). The coefficient indicating the differential effect, i.e. the interaction term between treatment and female, is not statistically different from zero, which suggests that males and females were equally affected by the program. The treatment coefficient is also not statistically different from zero, which suggests that the program had no discernible effect on male students.
 
-::: {#refs}
-:::
+```{r}
+#| output: true
+#| label: tbl-q3
+#| tbl-cap: "Regression of Dropout on Treatment, Female Dummy, and Interaction"
+#| tbl-pos: "H"
+
+modelsummary(
+  list("Endline" = regs[["students"]][["3y Dropout by gender"]],
+       "2y Follow-up" = regs[["students"]][["5y Dropout by gender"]]),
+  output = "kableExtra",
+  stars = c('*' = 0.1, '**' = 0.05, '***' = 0.01),
+  fmt   = 3,
+  gof_omit = 'AIC|BIC|RMSE|R2 |Std',
+  coef_rename = c(
+    "is_treated"           = "Treatment",
+    "is_female"            = "Female",
+    "is_treated:is_female" = "Treatment × Female"
+  )
+) %>% 
+  kable_styling(latex_options = "HOLD_position") %>%
+    footnote(
+    general = "The dependent variable is a dropout dummy. The model is a Linear Probability Model (LPM). Standard errors (in parentheses) are heteroskedasticity-robust and clustered at the school level.",
+    threeparttable = T
+  )
+```

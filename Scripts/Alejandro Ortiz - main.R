@@ -71,6 +71,8 @@ student_followups <- fread(str_glue("{cfg$raw_data}/student_follow_ups.csv"))
 
 # Helper functions                                                          ----
 
+
+# Balancing test helper
 bl_balance_helper <- function(dt, discrete_vars, continuous_vars) {
 
   # Copy for safety
@@ -180,6 +182,101 @@ bl_balance_helper <- function(dt, discrete_vars, continuous_vars) {
     chi_squared_tests = chi_squared_results
   ))
 
+}
+
+
+# Coefficient plotting helper
+plot_coefs <- function(model_list_parent, list_name, include_missing = F) {
+
+  # Set the target models based on the 'Missing' flag
+  all_names <- names(model_list_parent[[list_name]])
+
+  if (include_missing) {
+    target_model_names <- all_names[str_detect(all_names, "Missing")]
+  } else {
+    target_model_names <- all_names[!str_detect(all_names, "Missing")]
+  }
+
+  # --- 1. Data Extraction ---
+  all_estimates <- lapply(target_model_names, function(model_name) {
+
+    model_obj <- model_list_parent[[list_name]][[model_name]]
+
+    if (!"is_treated" %in% names(coef(model_obj))) {
+      warning(paste("Model", model_name, "does not have 'is_treated' coefficient."))
+      return(NULL)
+    }
+
+
+    # Extract coefficient and SE
+    est <- coef(model_obj)["is_treated"]
+    se <- se(model_obj)["is_treated"]
+
+
+    # Calculate 95% CIs
+    data.table(
+      Model_Name = model_name,
+      Estimate = est,
+      CI_Lower = est - 1.96 * se,
+      CI_Upper = est + 1.96 * se
+    )
+  })
+
+  plot_data <- rbindlist(all_estimates)
+
+
+  # --- 2. Data Shaping ---
+  # Extract Time ("3y", "5y") and Category
+  plot_data[, Time := str_sub(Model_Name, 1, 2)]
+
+
+  # If 'Missing' is included, the Category needs to handle "Missing " at the start
+  if (include_missing) {
+    plot_data[, Category := str_sub(Model_Name, 4)]
+    plot_data[, Category := str_replace(Category, "Missing ", "")]
+  } else {
+    plot_data[, Category := str_sub(Model_Name, 4)]
+  }
+
+  # Factorize Time for X-axis ordering and labeling
+  plot_data[, Time := factor(Time,
+                             levels = c("3y", "5y"),
+                             labels = c("Endline", "2y Follow up"),
+                             ordered = T)]
+
+  # --- 3. Plotting ---
+
+  # Define the width for dodging
+  pd <- position_dodge(width = 0.2)
+
+  ggplot(plot_data, aes(x = Time, y = Estimate, color = Category)) +
+
+    # Add the dotted line connecting the time points
+    geom_line(aes(group = Category),
+              linetype = "dotted",
+              linewidth = 0.6,
+              alpha = 0.5,
+              position = pd) +
+
+    # Add points and error bars with dodging
+    geom_point(size = 3, position = pd) +
+    geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper),
+                  width = 0.1, linewidth = 0.8, position = pd) +
+
+    # Add a dashed line at zero for reference
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+
+    labs(
+      y = "Estimated Treatment Effect Coefficient",
+      x = ""
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      axis.title = element_text(face = "bold")
+    )
 }
 
 
@@ -488,7 +585,7 @@ school_el <- student_followups[
 
     # The treatment is constant within a school, so take the first value
     is_treated = is_treated[1]
-    ),
+  ),
   by = school_id
 ]
 
@@ -629,130 +726,32 @@ regs[["students"]][["5y Dropout by gender"]] <- feols(
 # Plot of regression results                                                ----
 
 
-plot_feols_coefficients <- function(model_list_parent, list_name, include_missing = FALSE,
-                                    time_labels = c("Endline", "2y Follow up")) {
-
-  # Set the target models based on the 'Missing' flag
-  all_names <- names(model_list_parent[[list_name]])
-
-  if (include_missing) {
-    target_model_names <- all_names[str_detect(all_names, "Missing")]
-  } else {
-    target_model_names <- all_names[!str_detect(all_names, "Missing")]
-  }
-
-  # --- 1. Data Extraction ---
-  all_estimates <- lapply(target_model_names, function(model_name) {
-
-    model_obj <- model_list_parent[[list_name]][[model_name]]
-
-    if (!"is_treated" %in% names(coef(model_obj))) {
-      warning(paste("Model", model_name, "does not have 'is_treated' coefficient."))
-      return(NULL)
-    }
-
-    # Extract coefficient and SE
-    est <- coef(model_obj)["is_treated"]
-    se <- se(model_obj)["is_treated"]
-
-    # Calculate 95% Confidence Interval (CI) using z=1.96
-    data.table(
-      Model_Name = model_name,
-      Estimate = est,
-      CI_Lower = est - 1.96 * se,
-      CI_Upper = est + 1.96 * se
-    )
-  })
-
-  plot_data <- rbindlist(all_estimates)
-
-  # --- 2. Data Shaping ---
-
-  # Extract Time ("3y", "5y") and Category
-  plot_data[, Time := str_sub(Model_Name, 1, 2)]
-
-  # If 'Missing' is included, the Category needs to handle "Missing " at the start
-  if (include_missing) {
-    plot_data[, Category := str_sub(Model_Name, 4)]
-    plot_data[, Category := str_replace(Category, "Missing ", "")]
-  } else {
-    plot_data[, Category := str_sub(Model_Name, 4)]
-  }
-
-  # Factorize Time for X-axis ordering and labeling
-  plot_data[, Time := factor(Time,
-                             levels = c("3y", "5y"),
-                             labels = time_labels,
-                             ordered = TRUE)]
-
-  # --- 3. Plotting ---
-
-  # Define the width for dodging
-  dodge_width <- 0.2
-  pd <- position_dodge(width = dodge_width)
-
-  plot_title <- if (include_missing) "Treatment Effect on Missing Data Rates" else "Treatment Effect on Main Outcomes"
-
-  ggplot(plot_data, aes(x = Time, y = Estimate, color = Category)) +
-
-    # Add the dotted line connecting the time points
-    geom_line(aes(group = Category), linetype = "dotted", linewidth = 0.6, alpha = 0.5) +
-
-    # Add points and error bars with dodging
-    geom_point(size = 3, position = pd) +
-    geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper),
-                  width = 0.1, linewidth = 0.8, position = pd) +
-
-    # Add a dashed line at zero for reference
-    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-
-    labs(
-      title = plot_title,
-      y = "Coefficient (Treatment Effect)",
-      x = "Follow-up Period",
-      color = "Outcome Category"
-    ) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      legend.title = element_blank(),
-      plot.title = element_text(hjust = 0.5, face = "bold"),
-      axis.title = element_text(face = "bold")
-    )
-}
-
-## --- Usage Example for Missing Variables ---
-# Assuming your full list of models is called 'regs'
-
-# This call uses the new function to plot the "Missing" variables
-plot_feols_coefficients(
+# Normal outcomes
+plot_coefs(
   model_list_parent = regs,
-  list_name = "schools",
-  include_missing = TRUE
-)
-
-
-ggsave(
-  filename = "Output/missing_outcomes_plot.png",
-  plot = last_plot(),
-  width = 8,
-  height = 6,
-  dpi = 300
-)
-
-plot_feols_coefficients(
-  model_list_parent = regs,
-  list_name = "schools",
-  include_missing = F
+  list_name = "schools"
 )
 
 
 ggsave(
   filename = "Output/main_outcomes_plot.png",
-  plot = last_plot(),
-  width = 8,
-  height = 6,
-  dpi = 300
+  width = 9,
+  height = 5
+)
+
+
+# This call uses the new function to plot the "Missing" variables
+plot_coefs(
+  model_list_parent = regs,
+  list_name = "schools",
+  include_missing = T
+)
+
+
+ggsave(
+  filename = "Output/missing_outcomes_plot.png",
+  width = 9,
+  height = 5
 )
 
 

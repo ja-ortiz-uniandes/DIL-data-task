@@ -7,6 +7,13 @@
 *config.yml
 *config.yaml
 
+# Ignore pandoc intermediate files
+*.aux
+*.log
+*.tex
+*.toc
+*.rmd
+
 # Tiny table assets
 tinytable_assets/
 
